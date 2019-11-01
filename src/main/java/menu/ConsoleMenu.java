@@ -2,6 +2,10 @@ package menu;
 
 import builders.GetPhotosURIBuilder;
 import com.google.gson.Gson;
+import com.mongodb.DBObject;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import database.connection.WorkWithMongoDB;
 import entities.CountAndItems;
 import org.apache.http.HttpEntity;
@@ -10,21 +14,29 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.bson.Document;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.NoSuchElementException;
-import java.util.Scanner;
+import java.util.*;
 
+/**
+ * Class represents user interface as console application.
+ */
 public class ConsoleMenu {
     private static Scanner sc;
     private static WorkWithMongoDB mongoDB;
 
+    /**
+     * Method parse json to objects and returns it. Uses GSON and Json-simple.
+     * @param photosReq request.
+     * @param httpClient Opened HttpClient.
+     * @return Object of type 'CountAndItems' from json.
+     * @throws IOException
+     */
     private static CountAndItems parsingToJsonFromResponse(HttpGet photosReq,
                                                            CloseableHttpClient httpClient) throws IOException {
         try (CloseableHttpResponse resp = httpClient.execute(photosReq)) {
@@ -42,6 +54,11 @@ public class ConsoleMenu {
 
     }
 
+    /**
+     * Method checks if character 'e' was found, then exit from console app.
+     * @param e Inputted string.
+     * @return Returns true if 'e' was found and closing console, otherwise returns false.
+     */
     private static boolean exit(String e) {
         if (e.equals("e")) {
             try {
@@ -59,11 +76,26 @@ public class ConsoleMenu {
 
     }
 
+    /**
+     * Simple output collection in console.
+     */
     private static void showDatabase() {
+        MongoCollection<Document> collection = mongoDB.getCollection("dates_photos");
+        try (MongoCursor<Document> cur = collection.find().iterator()) {
 
+            while (cur.hasNext()) {
+                var doc = cur.next();
+                var photo = new ArrayList<>(doc.values());
+                System.out.printf("%s: %s%n", photo.get(1), photo.get(2));
+            }
+        }
     }
 
-
+    /**
+     * Represents user interface and dialog in console application.
+     * @param scanner Scanner.
+     * @throws InterruptedException
+     */
     public static void menu(Scanner scanner) throws InterruptedException {
         mongoDB = new WorkWithMongoDB();
         Thread.sleep(1000);
@@ -140,6 +172,8 @@ public class ConsoleMenu {
                     start = (Calendar)end.clone(); //todo: просмотреть правильно ли
                     end.add(Calendar.MONTH, 1);
                 }
+
+                showDatabase();
             } catch (URISyntaxException e) {
                 System.out.println("Wrong url for request!");
                 break;

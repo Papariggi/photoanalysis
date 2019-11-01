@@ -5,9 +5,21 @@ import org.apache.http.client.utils.URIBuilder;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+/**
+ * Class for building request uri(get photos from VK.Api)
+ */
 public class GetPhotosURIBuilder {
-    private static final String token = "";
+    private static final String token = ""; //todo: put access_token
 
+    /**
+     * Method building request URI(photos.search)
+     * @param lat latitude, should be double or short.
+     * @param longParam longitude, should be double or short.
+     * @param start_time Date of beginning to search in millis, should be long.
+     * @param end_time Date of ending to search in millis, should be long.
+     * @return Returns builded URI.
+     * @throws URISyntaxException
+     */
     public static URI buildGetPhotosUrl(String lat, String longParam, String start_time,
                                         String end_time) throws URISyntaxException
     {
