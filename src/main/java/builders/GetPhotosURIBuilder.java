@@ -12,7 +12,7 @@ public class GetPhotosURIBuilder {
     private static final String token = ""; //todo: put access_token
 
     /**
-     * Method building request URI(photos.search)
+     * Method building request URI for VK API method 'photos.search'.
      * @param lat latitude, should be double or short.
      * @param longParam longitude, should be double or short.
      * @param start_time Date of beginning to search in millis, should be long.
@@ -28,7 +28,7 @@ public class GetPhotosURIBuilder {
                 setParameter("long", longParam).
                 setParameter("start_time", start_time).
                 setParameter("end_time", end_time).
-                setParameter("count", "100").
+                setParameter("count", "1000").
                 setParameter("sort", "0").
                 setParameter("radius", "100").
                 setParameter("access_token", token).

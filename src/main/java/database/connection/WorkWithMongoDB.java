@@ -16,41 +16,70 @@ import java.util.*;
  */
 public class WorkWithMongoDB implements AutoCloseable{
 	private MongoDatabase database;
-	private MongoCollection collection;
+	private MongoCollection photoCollection;
 	private MongoClient mongoClient;
+	private MongoCollection dateCountCollection;
 	private boolean isClose = false;
 
 	public WorkWithMongoDB() {
 		mongoClient = MongoClients.create("mongodb://localhost:27017");
 		database = mongoClient.getDatabase("photoanalysis");
-		collection = database.getCollection("dates_photos");
+		photoCollection = database.getCollection("photos");
+		dateCountCollection = database.getCollection("dates_photos");
 	}
 
 	/**
+	 * Choosing month for correct output.
+	 * @param start Begin date.
+	 * @param end End date.
+	 * @return Returns End date as long if it has day of month over 15,
+	 * otherwise returns begin date.
+	 */
+	private long chooseMonth(Date start, Date end) {
+		Calendar calStart = Calendar.getInstance();
+		calStart.setTime(start);
+		Calendar calEnd = Calendar.getInstance();
+		calEnd.setTime(end);
+		if (calStart.get(Calendar.DAY_OF_MONTH) > 15) {
+			return end.getTime();
+		}
+		else
+			return start.getTime();
+	}
+	/**
 	 * Method for insert month data of type : ({"date" : "date", "countOfPhoto" : "count"}) in MongoDB.
-	 * @param countAndItems Object, which contains Items and counts from JSON response.
+	 * @param count Count of photo in this period.
 	 * @param start_date Date of beginning to add data to database.
 	 * @param end_date Date of ending to add data to database.
 	 */
-	public void insertDataForMonth(CountAndItems countAndItems, Date start_date, Date end_date) {
+	public void insertDataForMonth(int count, Date start_date, Date end_date) {
 		Document document = new Document("mouthY",
-				new SimpleDateFormat("MMM_YY").format(end_date.getTime())).
-				append("count", countAndItems.getCount());
-		collection.insertOne(document);
+				new SimpleDateFormat("MMMM_YY").
+						format(chooseMonth(start_date, end_date))).
+				append("count", count);
+		dateCountCollection.insertOne(document);
 	}
 
+	/**
+	 * Method closes connection with MongoDB.
+	 */
 	@Override
 	public void close() {
 		mongoClient.close();
 		isClose = true;
 	}
 
+	public void photoInsertFromJSON(String json) {
+		Document document = Document.parse(json);
+		photoCollection.insertOne(document);
+	}
 
 	/**
-	 * Full clear of table 'dates_photo';
+	 * Method clears up collection.
+	 * @param collectionName Name of collection to clear up.
 	 */
-	public void clear() {
-		collection.deleteMany(new BasicDBObject());
+	public void clear(String collectionName) {
+		database.getCollection(collectionName).deleteMany(new BasicDBObject());
 	}
 
 	/**
@@ -69,8 +98,8 @@ public class WorkWithMongoDB implements AutoCloseable{
 		return database.getCollection(collection);
 	}
 
-	public void setCollection(MongoCollection collection) {
-		this.collection = collection;
+	public void setPhotoCollection(MongoCollection photoCollection) {
+		this.photoCollection = photoCollection;
 	}
 
 	public MongoDatabase getDatabase() {

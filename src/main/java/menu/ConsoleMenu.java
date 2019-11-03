@@ -2,10 +2,9 @@ package menu;
 
 import builders.GetPhotosURIBuilder;
 import com.google.gson.Gson;
-import com.mongodb.DBObject;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
 import database.connection.WorkWithMongoDB;
 import entities.CountAndItems;
 import org.apache.http.HttpEntity;
@@ -17,11 +16,14 @@ import org.apache.http.util.EntityUtils;
 import org.bson.Document;
 import org.json.JSONObject;
 
+import javax.print.Doc;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+
+import static com.mongodb.client.model.Projections.*;
 
 /**
  * Class represents user interface as console application.
@@ -31,14 +33,15 @@ public class ConsoleMenu {
     private static WorkWithMongoDB mongoDB;
 
     /**
-     * Method parse json to objects and returns it. Uses GSON and Json-simple.
-     * @param photosReq request.
+     * Method getting json from response and returns it. Uses GSON and Json-simple.
+     *
+     * @param photosReq  Request.
      * @param httpClient Opened HttpClient.
-     * @return Object of type 'CountAndItems' from json.
+     * @return JSON type string.
      * @throws IOException
      */
-    private static CountAndItems parsingToJsonFromResponse(HttpGet photosReq,
-                                                           CloseableHttpClient httpClient) throws IOException {
+    private static String getJsonFromResponse(HttpGet photosReq,
+                                              CloseableHttpClient httpClient) throws IOException {
         try (CloseableHttpResponse resp = httpClient.execute(photosReq)) {
             HttpEntity entity = resp.getEntity();
             String json = EntityUtils.toString(entity, "UTF-8");
@@ -46,16 +49,14 @@ public class ConsoleMenu {
             JSONObject jsonObject = new JSONObject(json);
             JSONObject itemsAndCountJson = jsonObject.getJSONObject("response");
 
-            Gson gson = new Gson();
-            CountAndItems countItems = gson.fromJson(itemsAndCountJson.toString(),
-                    CountAndItems.class);
-            return countItems;
+            return itemsAndCountJson.toString();
         }
 
     }
 
     /**
      * Method checks if character 'e' was found, then exit from console app.
+     *
      * @param e Inputted string.
      * @return Returns true if 'e' was found and closing console, otherwise returns false.
      */
@@ -67,8 +68,7 @@ public class ConsoleMenu {
                     mongoDB.close();
                 System.exit(1);
                 return true;
-            }
-            catch (Exception ex) {
+            } catch (Exception ex) {
                 ex.printStackTrace();
             }
         }
@@ -93,17 +93,14 @@ public class ConsoleMenu {
 
     /**
      * Represents user interface and dialog in console application.
+     *
      * @param scanner Scanner.
      * @throws InterruptedException
      */
     public static void menu(Scanner scanner) throws InterruptedException {
-        mongoDB = new WorkWithMongoDB();
-        Thread.sleep(1000);
         sc = scanner;
-        String lat; //"55.804571"
-        String longParam; //"37.766999"
-        String start_time; //"1554843600"
-        String end_time; //"1557435600"
+        String lat = "55.804571";
+        String longParam ="37.766999";
         Date start_date;
         Date end_date;
 
@@ -113,6 +110,8 @@ public class ConsoleMenu {
         System.out.println("------------------Type 'e' for exit!");
 
         while (true) {
+            mongoDB = new WorkWithMongoDB();
+            Thread.sleep(1500);
             try {
                 System.out.println("\nEnter latitude of place:");
                 if (exit(lat = sc.nextLine()))
@@ -128,12 +127,10 @@ public class ConsoleMenu {
                 System.out.println("\nEnter start of period to analize(format - dd/MM/yyyy, example 09/01/2019):");
                 SimpleDateFormat df = new SimpleDateFormat("dd/MM/yyyy");
                 start_date = df.parse(sc.nextLine());
-                start_time = String.valueOf(start_date.getTime() / 1000L);
 
 
                 System.out.println("\nEnter end of period to analize(format - dd/MM/yyyy, example 09/01/2019):");
                 end_date = df.parse(sc.nextLine());
-                end_time = String.valueOf(end_date.getTime() / 1000L);
 
             } catch (NumberFormatException e) {
                 System.out.println("Incorrect values, please try again!");
@@ -146,34 +143,53 @@ public class ConsoleMenu {
                 continue;
             }
 
-            Calendar totalEnd = Calendar.getInstance();
-            totalEnd.setTime(end_date);
+        Calendar totalEnd = Calendar.getInstance();
+        totalEnd.setTime(end_date);
 
-            Calendar start = Calendar.getInstance();
-            start.setTime(start_date);
+        Calendar start = Calendar.getInstance();
+        start.setTime(start_date);
 
-            Calendar end = Calendar.getInstance();
-            end.setTime(start_date);
-            end.add(Calendar.MONTH, 1);
+        Calendar end = Calendar.getInstance();
+        end.setTime(start_date);
+        end.add(Calendar.MONTH, 1);
 
-            try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-                HttpGet photosReq;
-                CountAndItems countItems;
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            HttpGet photosReq;
+            CountAndItems countItems;
+            JSONObject itemsAndCountJson;
 
-                mongoDB.clear();
+            mongoDB.clear("photos");
+            mongoDB.clear("dates_photos");
 
-                while (start.compareTo(totalEnd) < 0 &
-                        start.get(Calendar.MONTH) != totalEnd.get(Calendar.MONTH)) {
+            while (start.compareTo(totalEnd) < 0) {
+                if (end.compareTo(totalEnd) > 0)
+                        end = (Calendar)totalEnd.clone();
+                    Thread.sleep(1500);
+                    //Send http GET request
                     photosReq = new HttpGet(GetPhotosURIBuilder.buildGetPhotosUrl(lat, longParam,
                             String.valueOf(start.getTime().getTime() / 1000L),
                             String.valueOf(end.getTime().getTime() / 1000L)));
-                    countItems = parsingToJsonFromResponse(photosReq, httpClient);
-                    mongoDB.insertDataForMonth(countItems, start.getTime(), end.getTime());
-                    start = (Calendar)end.clone(); //todo: просмотреть правильно ли
-                    end.add(Calendar.MONTH, 1);
-                }
 
-                showDatabase();
+                    //getting response
+                    try (CloseableHttpResponse resp = httpClient.execute(photosReq)) {
+                        HttpEntity entity = resp.getEntity();
+                        String json = EntityUtils.toString(entity, "UTF-8");
+
+                        JSONObject jsonObject = new JSONObject(json);
+                        itemsAndCountJson = jsonObject.getJSONObject("response");
+
+                        //parsing into mongoDB
+                        mongoDB.photoInsertFromJSON(itemsAndCountJson.toString());
+                    }
+                    //Parsing into objects
+                    countItems = new Gson().fromJson(itemsAndCountJson.toString(), CountAndItems.class);
+                    mongoDB.insertDataForMonth(countItems.getCount(), start.getTime(), end.getTime());
+
+                    start = (Calendar) end.clone();
+                    end.add(Calendar.MONTH, 1);
+            }
+
+            showDatabase();
             } catch (URISyntaxException e) {
                 System.out.println("Wrong url for request!");
                 break;
@@ -182,10 +198,9 @@ public class ConsoleMenu {
                 break;
             }
             finally {
-                mongoDB.close();
+            mongoDB.close();
             }
         }
 
     }
-
 }
